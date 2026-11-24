@@ -88,6 +88,17 @@ button.btn.danger { color: #cf222e; }
 .heat td[data-d] { cursor: pointer; }
 .legend { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); margin-top: 8px; }
 .legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.task a.go { font-size: 12px; white-space: nowrap; color: var(--accent-strong); text-decoration: none; margin-top: 2px; }
+.q { padding: 10px 0; border-top: 1px solid var(--line); }
+.qq { font-weight: 600; margin-bottom: 6px; }
+.opt { display: flex; gap: 8px; align-items: flex-start; padding: 5px 8px; border-radius: 6px; cursor: pointer; }
+.opt input { margin-top: 4px; accent-color: var(--accent); }
+.opt.right { background: var(--ok-soft); }
+.opt.wrong { background: var(--warn-soft); text-decoration: line-through; }
+.expl { font-size: 13px; color: var(--muted); margin: 4px 8px 0; }
+.lrow { display: flex; justify-content: space-between; gap: 10px; padding: 8px 6px; border-top: 1px solid var(--line); color: var(--text); text-decoration: none; border-radius: 6px; }
+.lrow:hover { background: var(--bg); }
+.lrow.cur { font-weight: 600; background: var(--accent-soft); }
 .hidden { display: none; }
 </style>
 </head>
@@ -110,6 +121,7 @@ button.btn.danger { color: #cf222e; }
 </header>
 <main class="wrap" id="view"></main>
 
+<script src="lessons.js"></script>
 <script>
 (function () {
 'use strict';
@@ -120,21 +132,7 @@ var STAGES = [
   { title: 'Этап 0. SQL и основы мышления', start: '2026-11-24', end: '2027-01-31', hours: 200,
     goal: 'Уверенно писать SQL-запросы и понять, как вообще работает программирование.',
     check: 'Сам проектирую 3–4 связанные таблицы и без подсказок пишу запросы с JOIN, GROUP BY, HAVING.',
-    tasks: [
-      'w3schools: индексы, автоинкремент, даты, представления',
-      'w3schools: SQL-инъекции, параметры, подготовленные запросы',
-      'w3schools: упражнения, тест и задания по написанию SQL',
-      'Установить PostgreSQL на Mac (Postgres.app) + DBeaver или TablePlus',
-      'sql-ex.ru — решить 30+ задач',
-      'pgexercises.com — пройти основные разделы',
-      'Транзакции: BEGIN / COMMIT / ROLLBACK',
-      'Нормализация таблиц: 1НФ, 2НФ, 3НФ',
-      'Основы EXPLAIN: как читать план запроса',
-      'CS50: первые 3 недели курса',
-      'Завести аккаунт на GitHub',
-      '!ПРОЕКТ: спроектировать БД магазина (пользователи, заказы, товары) + 20 запросов',
-      'Пройти тест по SQL у Claude и закрыть пробелы'
-    ] },
+    tasks: [] },
   { title: 'Этап 1. Основы Go', start: '2027-02-01', end: '2027-05-31', hours: 400,
     goal: 'Писать простые программы на Go без подсказок.',
     check: 'Могу без интернета написать консольную программу со структурами, срезами и обработкой ошибок.',
@@ -219,12 +217,6 @@ STAGES.forEach(function (s, si) {
   });
 });
 var QUARTERS = ['2027-03', '2027-06', '2027-09', '2027-12', '2028-03', '2028-06', '2028-08'];
-var ROUTINE = [
-  { id: 'practice', text: 'Практика', hint: '~2 часа: пишу код и решаю задачи сам' },
-  { id: 'theory', text: 'Теория', hint: '~1 час: книга, курс, статья' },
-  { id: 'repeat', text: 'Повторение', hint: '~30 минут: записываю своими словами, что понял' },
-  { id: 'github', text: 'Коммит на GitHub', hint: 'выложил всё, что написал сегодня' }
-];
 var MOODS = ['😫', '😕', '😐', '🙂', '🔥'];
 var MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 var MONTHS_SHORT = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
@@ -249,11 +241,11 @@ function plural(n, one, few, many) {
 // ---------------- State ----------------
 var STORE = 'goPlan.v1';
 var state = load();
-function blank() { return { tasks: {}, logs: {}, reviews: {}, settings: { restDay: 0 }, updatedAt: 0 }; }
+function blank() { return { tasks: {}, logs: {}, reviews: {}, lessons: {}, settings: { restDay: -1 }, updatedAt: 0 }; }
 function load() {
   try {
     var s = JSON.parse(localStorage.getItem(STORE));
-    if (s && s.tasks) { s.settings = s.settings || { restDay: 0 }; s.reviews = s.reviews || {}; s.logs = s.logs || {}; return s; }
+    if (s && s.tasks) { s.settings = s.settings || { restDay: -1 }; s.reviews = s.reviews || {}; s.logs = s.logs || {}; s.lessons = s.lessons || {}; return s; }
   } catch (e) {}
   return blank();
 }
@@ -269,6 +261,10 @@ function setCfg(c) { try { localStorage.setItem('goPlan.sync', JSON.stringify(c)
 
 // ---------------- Derived ----------------
 function stageProgress(s) {
+  if (s === STAGES[0]) {
+    var ld = LESSONS.filter(function (l) { return lessonState(l).done; }).length;
+    return { done: ld, total: LESSONS.length, pct: Math.round(ld / LESSONS.length * 100) };
+  }
   var done = s.items.filter(function (it) { return state.tasks[it.id]; }).length;
   return { done: done, total: s.items.length, pct: Math.round(done / s.items.length * 100) };
 }
@@ -277,7 +273,7 @@ function calendarStage(k) {
   return STAGES.length - 1;
 }
 function activeStage() {
-  for (var i = 0; i < STAGES.length; i++) if (stageProgress(STAGES[i]).done < STAGES[i].items.length) return i;
+  for (var i = 0; i < STAGES.length; i++) { var p = stageProgress(STAGES[i]); if (p.done < p.total) return i; }
   return STAGES.length - 1;
 }
 function stats() {
@@ -306,9 +302,50 @@ function stats() {
   return { days: keys.length, hours: hours, streak: streak, best: best };
 }
 
+// ---------------- Lessons ----------------
+var PLACES = { w: ['🏢', 'на работе'], h: ['🏠', 'дома, на Mac'], a: ['📍', 'где угодно'] };
+var SHORT = [
+  'Перечитать конспект последнего урока (10 мин)',
+  'Пройти мини-тест прошлого урока ещё раз — он открывается во вкладке «План» (5 мин)',
+  'Решить 2–3 задачи на sql-ex.ru или pgexercises (15 мин)'
+];
+var PASS = 0.7;
+var STAGE0_START = '2026-11-24';
+
+function lessonState(l) { return state.lessons[l.id] || {}; }
+function ensureLesson(l) {
+  var st = state.lessons[l.id] = state.lessons[l.id] || {};
+  st.tasks = st.tasks || {};
+  return st;
+}
+function currentLesson() {
+  for (var i = 0; i < LESSONS.length; i++) if (!lessonState(LESSONS[i]).done) return i;
+  return LESSONS.length;
+}
+function quizPassed(l) {
+  var q = lessonState(l).quiz;
+  return !l.quiz.length || !!(q && q.answers && q.score / q.total >= PASS);
+}
+function lessonCounts(l) {
+  var t = lessonState(l).tasks || {}, done = 0;
+  l.tasks.forEach(function (x, j) { if (t[j]) done++; });
+  var total = l.tasks.length;
+  if (l.quiz.length) { total++; if (quizPassed(l)) done++; }
+  return { done: done, total: total };
+}
+function lessonMinutes(l) { return l.tasks.reduce(function (a, t) { return a + (t[3] || 0); }, 0); }
+function fmtMin(m) { return m < 60 ? m + ' мин' : String(Math.round(m / 30) / 2).replace('.', ',') + ' ч'; }
+function markStudied() {
+  var k = todayKey();
+  var l = state.logs[k] = state.logs[k] || {};
+  l.studied = true;
+}
+function bar(frac) { return '<div class="bar"><i style="width:' + Math.round(frac * 100) + '%"></i></div>'; }
+
 // ---------------- Views ----------------
 var tab = 'today';
 var editDate = null;
+var openLesson = null;
 
 function render() {
   var v = $('#view');
@@ -322,7 +359,7 @@ function render() {
   renderSync();
 }
 
-function taskRow(it, showStage) {
+function taskRow(it) {
   var done = state.tasks[it.id];
   return '<div class="task' + (done ? ' done' : '') + (it.project ? ' project' : '') + '">' +
     '<input type="checkbox" id="c_' + it.id + '" data-task="' + it.id + '"' + (done ? ' checked' : '') + '>' +
@@ -339,67 +376,138 @@ function statsBlock() {
     '<div class="stat"><b>' + left + '</b><span>' + plural(left, 'день', 'дня', 'дней') + ' до августа 2028</span></div></div>';
 }
 
-function viewToday() {
-  var k = editDate || todayKey(), isToday = k === todayKey();
-  var d = parse(k), log = state.logs[k] || {};
-  var ai = activeStage(), ci = calendarStage(k), s = STAGES[ai], pr = stageProgress(s);
-  var rest = +state.settings.restDay === d.getDay();
-  // tasks finished on this day stay visible (struck through) next to the next three open ones
-  var doneHere = [], open = [];
-  STAGES.forEach(function (st) { st.items.forEach(function (it) { if (state.tasks[it.id] === k) doneHere.push(it); }); });
-  s.items.forEach(function (it) { if (!state.tasks[it.id]) open.push(it); });
-  var next = doneHere.concat(open.slice(0, 3));
-
-  var h = '<h1>' + (isToday ? 'Сегодня, ' : '') + d.getDate() + ' ' + MONTHS_SHORT[d.getMonth()] + ', ' + WEEKDAYS[d.getDay()] + '</h1>';
-  if (!isToday) h += '<p class="small"><a href="#" data-act="back-today">← вернуться к сегодняшнему дню</a></p>';
-  else h += '<p class="muted small">Цель: оффер Go-разработчика 250–300 тыс. ₽ к августу 2028</p>';
-  h += statsBlock();
-
-  if (rest && isToday) h += '<div class="note ok">Сегодня день отдыха. Можно лёгкое повторение — или просто отдохнуть, это тоже часть плана.</div>';
-
-  h += '<div class="card"><h2>' + esc(s.title) + '</h2>' +
-    '<div class="bar"><i style="width:' + pr.pct + '%"></i></div>' +
-    '<p class="small muted">' + pr.done + ' из ' + pr.total + ' задач · по графику до ' + human(s.end) + '</p>';
-  if (ci > ai) h += '<div class="note warn">По графику вы уже должны быть на этапе ' + ci + '. Не страшно — в квартальной проверке поправьте сроки, но не бросайте.</div>';
-  else if (ai > ci) h += '<div class="note ok">Вы опережаете график. Отлично!</div>';
-  h += '<h3>Фокус дня</h3>' + (next.length ? next.map(function (it) { return taskRow(it); }).join('') : '<p class="muted">Все задачи этапа выполнены 🎉</p>') + '</div>';
-
-  h += '<div class="card routine"><h2>Распорядок</h2>' + ROUTINE.map(function (r) {
-    var on = log.routine && log.routine[r.id];
-    return '<div class="task' + (on ? ' done' : '') + '"><input type="checkbox" id="r_' + r.id + '" data-routine="' + r.id + '"' + (on ? ' checked' : '') + '>' +
-      '<label for="r_' + r.id + '">' + r.text + ' <small>— ' + r.hint + '</small></label></div>';
-  }).join('') + '</div>';
-
-  h += '<div class="card"><h2>Итог дня</h2>' +
-    '<div class="row"><div><label class="f" for="f_hours">Сколько часов занимался</label><input type="number" id="f_hours" min="0" max="16" step="0.5" value="' + esc(log.hours || '') + '" placeholder="например, 3.5"></div>' +
-    '<div><label class="f">Настроение</label><div class="mood">' + MOODS.map(function (m, i) {
-      return '<button type="button" data-mood="' + (i + 1) + '" class="' + (+log.mood === i + 1 ? 'on' : '') + '">' + m + '</button>'; }).join('') + '</div></div></div>' +
-    '<label class="f" for="f_did">Что сделал</label><textarea id="f_did" placeholder="Темы, задачи, сколько решил">' + esc(log.did) + '</textarea>' +
-    '<label class="f" for="f_learned">Что понял своими словами</label><textarea id="f_learned" placeholder="Главная мысль дня">' + esc(log.learned) + '</textarea>' +
-    '<label class="f" for="f_hard">Что было сложно / вопросы</label><textarea id="f_hard" placeholder="Что спросить у Claude или в чате">' + esc(log.hard) + '</textarea>' +
-    '<label class="f" for="f_tomorrow">План на завтра</label><textarea id="f_tomorrow">' + esc(log.tomorrow) + '</textarea>' +
-    '<div class="btns"><button class="btn primary" data-act="save-day">' + (log.studied ? 'Обновить запись' : 'Сохранить и отметить день') + '</button>' +
-    (log.studied ? '<button class="btn" data-act="unmark-day">Снять отметку дня</button>' : '') + '</div>' +
-    '<p class="small muted" id="saveMsg"></p></div>';
-
-  var y = new Date(d); y.setDate(y.getDate() - 1);
-  var prevLog = state.logs[key(y)];
-  if (prevLog && prevLog.tomorrow) h += '<div class="note">Вчера вы планировали: ' + esc(prevLog.tomorrow) + '</div>';
+function quizHtml(i) {
+  var l = LESSONS[i], q = lessonState(l).quiz, checked = !!(q && q.answers);
+  var h = '<h3>Мини-тест</h3><p class="small muted">Засчитывается от 70% правильных ответов.</p>';
+  l.quiz.forEach(function (qq, n) {
+    var right = checked && q.answers[n] === qq[2];
+    h += '<div class="q"><div class="qq">' + (n + 1) + '. ' + esc(qq[0]) + '</div>';
+    qq[1].forEach(function (opt, o) {
+      var cls = '';
+      if (checked) { if (o === qq[2]) cls = ' right'; else if (q.answers[n] === o) cls = ' wrong'; }
+      h += '<label class="opt' + cls + '"><input type="radio" name="q' + i + '_' + n + '" value="' + o + '"' +
+        (checked && q.answers[n] === o ? ' checked' : '') + (checked ? ' disabled' : '') + '> ' + esc(opt) + '</label>';
+    });
+    if (checked) h += '<div class="expl">' + (right ? '✓ Верно. ' : '✗ Правильный ответ выделен зелёным. ') + esc(qq[3] || '') + '</div>';
+    h += '</div>';
+  });
+  if (checked) {
+    var ok = q.score / q.total >= PASS;
+    h += '<div class="note ' + (ok ? 'ok' : 'warn') + '">' + (ok ? 'Тест сдан: ' : 'Пока не сдан: ') + q.score + ' из ' + q.total +
+      (ok ? '' : '. Перечитайте конспект по ошибкам и попробуйте ещё раз.') + '</div>' +
+      '<div class="btns"><button class="btn" data-act="quiz-retry" data-l="' + i + '">Пройти заново</button></div>';
+  } else {
+    h += '<div class="btns"><button class="btn primary" data-act="quiz-check" data-l="' + i + '">Проверить ответы</button></div>';
+  }
   return h;
 }
 
+function lessonCard(i) {
+  var l = LESSONS[i], st = lessonState(l), t = st.tasks || {}, c = lessonCounts(l);
+  var h = '<div class="card"><div class="small muted">Урок ' + (i + 1) + ' из ' + LESSONS.length + ' · примерно ' + fmtMin(lessonMinutes(l)) +
+    (st.done ? ' · пройден ' + human(st.done) : '') + '</div>' +
+    '<h2 style="margin-top:4px">' + esc(l.title) + '</h2><p class="small">' + esc(l.why) + '</p>' +
+    bar(c.done / c.total) + '<p class="small muted">' + c.done + ' из ' + c.total + ' пунктов · 🏢 на работе · 🏠 дома · 📍 где угодно</p>';
+  l.tasks.forEach(function (task, j) {
+    var on = t[j], id = 'lt' + i + '_' + j, p = PLACES[task[0]] || PLACES.a;
+    h += '<div class="task' + (on ? ' done' : '') + '"><input type="checkbox" id="' + id + '" data-lt="' + i + ':' + j + '"' + (on ? ' checked' : '') + '>' +
+      '<label for="' + id + '"><span title="' + p[1] + '">' + p[0] + '</span> ' + esc(task[1]) +
+      (task[3] ? ' <small class="muted">· ' + task[3] + ' мин</small>' : '') + '</label>' +
+      (task[2] ? '<a class="go" href="' + esc(task[2]) + '" target="_blank" rel="noopener">открыть ↗</a>' : '') + '</div>';
+  });
+  if (l.quiz.length) h += quizHtml(i);
+  if (st.done) h += '<div class="note ok">Урок пройден ✓</div>';
+  else if (c.done === c.total) h += '<div class="btns"><button class="btn primary" data-act="lesson-done" data-l="' + i + '">Урок пройден → следующий</button></div>';
+  else h += '<p class="small muted">Отметьте все пункты' + (l.quiz.length ? ' и сдайте мини-тест' : '') + ', чтобы перейти к следующему уроку. Не успели сегодня — продолжите завтра с этого же места.</p>';
+  return h + '</div>';
+}
+
+function scheduleNote(ci) {
+  var k = todayKey(), end = STAGES[0].end;
+  if (ci >= LESSONS.length || k < STAGE0_START) return '';
+  var frac = Math.min(1, daysBetween(STAGE0_START, k) / daysBetween(STAGE0_START, end));
+  var expected = Math.round(frac * LESSONS.length);
+  var diff = ci - expected;
+  if (diff <= -3) return '<div class="note warn small">По графику сейчас должен идти урок ' + Math.min(expected + 1, LESSONS.length) + ', вы на уроке ' + (ci + 1) + '. Это нормально — просто продолжайте. Если отставание растёт, пересмотрите сроки в квартальной проверке.</div>';
+  if (diff >= 3) return '<div class="note ok small">Вы опережаете график на ' + diff + ' ' + plural(diff, 'урок', 'урока', 'уроков') + '. Отлично!</div>';
+  return '<p class="small muted">Идёте по графику: этап 0 до ' + human(end) + '.</p>';
+}
+
+function shortCard(log) {
+  var t = log.shortTasks || {}, all = SHORT.every(function (x, j) { return t[j]; });
+  return '<div class="card"><h2>⏱ План на 30 минут</h2><p class="small">Короткий день тоже засчитывается: серия не прервётся, а урок подождёт до следующего раза.</p>' +
+    SHORT.map(function (txt, j) {
+      return '<div class="task' + (t[j] ? ' done' : '') + '"><input type="checkbox" id="sh' + j + '" data-short="' + j + '"' + (t[j] ? ' checked' : '') + '><label for="sh' + j + '">' + esc(txt) + '</label></div>';
+    }).join('') +
+    (all ? '<div class="note ok">Короткий день засчитан ✓</div>' : '') +
+    '<div class="btns"><button class="btn" data-act="short-off">Всё-таки сделаю полный урок</button></div></div>';
+}
+
+function summaryCard(k, log) {
+  return '<div class="card"><h2>Итог дня</h2>' +
+    '<div class="row"><div><label class="f" for="f_hours">Сколько часов занимался</label><input type="number" id="f_hours" min="0" max="16" step="0.5" value="' + esc(log.hours || '') + '" placeholder="например, 3.5"></div>' +
+    '<div><label class="f">Настроение</label><div class="mood">' + MOODS.map(function (m, i) {
+      return '<button type="button" data-mood="' + (i + 1) + '" class="' + (+log.mood === i + 1 ? 'on' : '') + '">' + m + '</button>'; }).join('') + '</div></div></div>' +
+    '<label class="f" for="f_learned">Что понял своими словами</label><textarea id="f_learned" placeholder="Главная мысль дня">' + esc(log.learned) + '</textarea>' +
+    '<label class="f" for="f_hard">Что было сложно / вопросы к Claude</label><textarea id="f_hard">' + esc(log.hard) + '</textarea>' +
+    '<label class="f" for="f_did">Заметки</label><textarea id="f_did" placeholder="Результат теста, сколько задач решил и т. п.">' + esc(log.did) + '</textarea>' +
+    '<div class="btns"><button class="btn primary" data-act="save-day">' + (log.studied ? 'Сохранить' : 'Сохранить и отметить день') + '</button>' +
+    (log.studied ? '<button class="btn" data-act="unmark-day">Снять отметку дня</button>' : '') + '</div>' +
+    '<p class="small muted" id="saveMsg">' + (log.studied ? 'День отмечен в трекере ✓' : 'День отмечается автоматически, когда вы выполняете пункты урока.') + '</p></div>';
+}
+
+function lessonsDoneOn(k) { return LESSONS.filter(function (l) { return lessonState(l).done === k; }); }
+
+function viewToday() {
+  if (editDate) return viewDay(editDate);
+  var k = todayKey(), d = new Date(), log = state.logs[k] || {}, ci = currentLesson();
+  var h = '<h1>Сегодня, ' + d.getDate() + ' ' + MONTHS_SHORT[d.getMonth()] + ', ' + WEEKDAYS[d.getDay()] + '</h1>' +
+    '<p class="muted small">Цель: оффер Go-разработчика 250–300 тыс. ₽ к августу 2028</p>' + statsBlock() + scheduleNote(ci);
+  var doneToday = lessonsDoneOn(k);
+  if (doneToday.length) h += '<div class="note ok">Сегодня пройдено: ' + doneToday.map(function (l) { return '«' + esc(l.title) + '»'; }).join(', ') +
+    '. Отличная работа! Если остались силы, можно начать следующий урок.</div>';
+  if (log.short) {
+    h += shortCard(log);
+    if (ci < LESSONS.length) h += '<p class="small muted">Следующий полный урок: «' + esc(LESSONS[ci].title) + '».</p>';
+  } else if (ci < LESSONS.length) {
+    h += lessonCard(ci) + '<div class="btns" style="margin:-4px 0 16px"><button class="btn" data-act="short-on">⏱ Сегодня мало времени — дай план на 30 минут</button></div>';
+  } else {
+    var ai = activeStage(), s = STAGES[ai];
+    h += '<div class="card"><h2>Все уроки этапа 0 пройдены 🎉</h2><p>Напишите Claude «готов к тесту по SQL» и пришлите резервную копию из Настроек — по результатам он распишет уроки этапа 1.</p>' +
+      (ai > 0 ? '<h3>' + esc(s.title) + '</h3>' + s.items.filter(function (it) { return !state.tasks[it.id]; }).slice(0, 3).map(taskRow).join('') : '') + '</div>';
+  }
+  return h + summaryCard(k, log);
+}
+
+function viewDay(k) {
+  var d = parse(k), log = state.logs[k] || {}, done = lessonsDoneOn(k);
+  return '<h1>' + d.getDate() + ' ' + MONTHS_SHORT[d.getMonth()] + ' ' + d.getFullYear() + ', ' + WEEKDAYS[d.getDay()] + '</h1>' +
+    '<p class="small"><a href="#" data-act="back-today">← к сегодняшнему дню</a></p>' +
+    (done.length ? '<div class="note ok">Пройдено в этот день: ' + done.map(function (l) { return '«' + esc(l.title) + '»'; }).join(', ') + '</div>' : '') +
+    (log.short ? '<div class="note">Короткий день (план на 30 минут)</div>' : '') + summaryCard(k, log);
+}
+
 function viewPlan() {
-  var ci = calendarStage(todayKey());
-  var h = '<h1>План</h1><p class="muted small">Отмечайте задачи — дата выполнения сохранится автоматически.</p>';
+  if (openLesson !== null) return '<p class="small"><a href="#" data-act="plan-back">← ко всему плану</a></p>' + lessonCard(openLesson);
+  var cal = calendarStage(todayKey()), ai = activeStage(), ci = currentLesson();
+  var h = '<h1>План</h1><p class="muted small">Этап 0 расписан по урокам — нажмите на урок, чтобы открыть его. Следующие этапы будут расписаны по урокам перед их началом.</p>';
   STAGES.forEach(function (s, i) {
-    var pr = stageProgress(s), open = i === activeStage();
-    h += '<div class="card"><div class="stage-head" data-toggle="st' + i + '"><h2>' + esc(s.title) + (i === ci ? ' <span class="tag">сейчас по графику</span>' : '') + '</h2>' +
-      '<span class="pct">' + pr.done + '/' + pr.total + ' · ' + human(s.start) + ' – ' + human(s.end) + '</span></div>' +
-      '<div class="bar"><i style="width:' + pr.pct + '%"></i></div>' +
-      '<div id="st' + i + '" class="' + (open ? '' : 'hidden') + '">' +
-      '<p class="small"><b>Цель этапа:</b> ' + esc(s.goal) + ' <span class="muted">(~' + s.hours + ' ч)</span></p>' +
-      s.items.map(function (it) { return taskRow(it); }).join('') +
-      '<div class="note' + (pr.done === pr.total ? ' ok' : '') + '"><b>Контрольная точка:</b> ' + esc(s.check) + '</div></div></div>';
+    var pr = stageProgress(s);
+    h += '<div class="card"><div class="stage-head" data-toggle="st' + i + '"><h2>' + esc(s.title) + (i === cal ? ' <span class="tag">сейчас по графику</span>' : '') + '</h2>' +
+      '<span class="pct">' + pr.done + '/' + pr.total + ' · ' + human(s.start) + ' – ' + human(s.end) + '</span></div>' + bar(pr.done / pr.total) +
+      '<div id="st' + i + '" class="' + (i === ai ? '' : 'hidden') + '">' +
+      '<p class="small"><b>Цель этапа:</b> ' + esc(s.goal) + ' <span class="muted">(~' + s.hours + ' ч)</span></p>';
+    if (i === 0) {
+      LESSONS.forEach(function (l, li) {
+        var st = lessonState(l), c = lessonCounts(l);
+        var icon = st.done ? '✅' : li === ci ? '▶️' : '⚪️';
+        h += '<a href="#" class="lrow' + (li === ci ? ' cur' : '') + '" data-lesson="' + li + '"><span>' + icon + ' Урок ' + (li + 1) + '. ' + esc(l.title) + '</span>' +
+          '<span class="small muted">' + (st.done ? human(st.done) : c.done ? c.done + '/' + c.total : fmtMin(lessonMinutes(l))) + '</span></a>';
+      });
+    } else {
+      h += s.items.map(taskRow).join('');
+    }
+    h += '<div class="note' + (pr.done === pr.total ? ' ok' : '') + '"><b>Контрольная точка:</b> ' + esc(s.check) + '</div></div></div>';
   });
   return h;
 }
@@ -407,19 +515,20 @@ function viewPlan() {
 function viewJournal() {
   var keys = Object.keys(state.logs).sort().reverse();
   var h = '<h1>Дневник</h1><p class="muted small">Нажмите на день, чтобы открыть и отредактировать запись.</p><div class="card">';
-  if (!keys.length) h += '<p class="muted">Пока пусто. Заполните «Итог дня» на вкладке «Сегодня».</p>';
+  if (!keys.length) h += '<p class="muted">Пока пусто. Выполняйте пункты урока и заполняйте «Итог дня» на вкладке «Сегодня».</p>';
   keys.forEach(function (k) {
-    var l = state.logs[k], d = parse(k);
+    var l = state.logs[k], d = parse(k), done = lessonsDoneOn(k);
     h += '<div class="log"><div class="h"><a href="#" data-open="' + k + '">' + d.getDate() + ' ' + MONTHS_SHORT[d.getMonth()] + ' ' + d.getFullYear() + ', ' + WEEKDAYS[d.getDay()] + '</a>' +
-      '<span>' + (l.mood ? MOODS[l.mood - 1] + ' ' : '') + (l.studied ? (l.hours || 0) + ' ч' : '<span class="muted">не отмечен</span>') + '</span></div>' +
-      (l.did ? '<p><b>Сделал:</b> ' + esc(l.did) + '</p>' : '') +
+      '<span>' + (l.mood ? MOODS[l.mood - 1] + ' ' : '') + (l.studied ? (l.hours ? l.hours + ' ч' : '✓') : '<span class="muted">не отмечен</span>') + (l.short ? ' · ⏱' : '') + '</span></div>' +
+      (done.length ? '<p><b>Уроки:</b> ' + done.map(function (x) { return esc(x.title); }).join(', ') + '</p>' : '') +
       (l.learned ? '<p><b>Понял:</b> ' + esc(l.learned) + '</p>' : '') +
-      (l.hard ? '<p><b>Сложно:</b> ' + esc(l.hard) + '</p>' : '') + '</div>';
+      (l.hard ? '<p><b>Сложно:</b> ' + esc(l.hard) + '</p>' : '') +
+      (l.did ? '<p><b>Заметки:</b> ' + esc(l.did) + '</p>' : '') + '</div>';
   });
   return h + '</div>';
 }
 
-function heatLevel(hrs) { return hrs <= 0 ? 1 : hrs < 2 ? 1 : hrs < 3 ? 2 : hrs < 4 ? 3 : 4; }
+function heatLevel(l) { var hrs = +l.hours || 0; if (l.short || !hrs) return 1; return hrs < 2 ? 1 : hrs < 3 ? 2 : hrs < 4 ? 3 : 4; }
 function viewTracker() {
   var st = stats(), tk = todayKey();
   var h = '<h1>Трекер</h1><p class="muted small">Каждая клетка — день. Чем темнее, тем больше часов. Нажмите на клетку, чтобы открыть день.</p>' + statsBlock() +
@@ -433,8 +542,8 @@ function viewTracker() {
     for (var dd = 1; dd <= 31; dd++) {
       if (dd > dim) { h += '<td class="x"></td>'; continue; }
       var k = y + '-' + pad(mo + 1) + '-' + pad(dd), l = state.logs[k];
-      var color = l && l.studied ? 'var(--heat' + heatLevel(+l.hours || 0) + ')' : '';
-      var title = human(k) + (l && l.studied ? ': ' + (l.hours || 0) + ' ч' : '');
+      var color = l && l.studied ? 'var(--heat' + heatLevel(l) + ')' : '';
+      var title = human(k) + (l && l.studied ? ': ' + (l.hours ? l.hours + ' ч' : 'занимался') : '');
       h += '<td data-d="' + k + '" title="' + title + '"' + (k === tk ? ' class="today"' : '') + (color ? ' style="background:' + color + '"' : '') + '></td>';
     }
     h += '</tr>';
@@ -461,13 +570,13 @@ function viewSettings() {
   var c = cfg();
   return '<h1>Настройки</h1>' +
     '<div class="card"><h2>День отдыха</h2><select id="restDay">' +
-    [['-1', 'Без дня отдыха']].concat(WEEKDAYS.map(function (w, i) { return [String(i), w.charAt(0).toUpperCase() + w.slice(1)]; }))
+    [['-1', 'Без постоянного дня отдыха']].concat(WEEKDAYS.map(function (w, i) { return [String(i), w.charAt(0).toUpperCase() + w.slice(1)]; }))
       .map(function (o) { return '<option value="' + o[0] + '"' + (String(state.settings.restDay) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') +
-    '</select><p class="small muted">В этот день серия не прерывается.</p></div>' +
+    '</select><p class="small muted">В этот день серия не прерывается. При свободном графике оставьте «без постоянного дня» и используйте кнопку «Сегодня мало времени».</p></div>' +
 
     '<div class="card"><h2>Синхронизация между устройствами</h2>' +
     '<p class="small">Без синхронизации данные хранятся только в этом браузере: отметки на Mac не будут видны на рабочем компьютере. ' +
-    'Синхронизация сохраняет данные в ваш <b>приватный GitHub Gist</b>.</p>' +
+    'Синхронизация сохраняет данные в ваш <b>секретный GitHub Gist</b>.</p>' +
     '<ol class="small"><li>GitHub → Settings → Developer settings → Personal access tokens → <b>Fine-grained tokens</b> → Generate new token.</li>' +
     '<li>В «Account permissions» выдайте только <b>Gists: Read and write</b>. Больше ничего не нужно.</li>' +
     '<li>Вставьте токен ниже на каждом устройстве. На первом устройстве нажмите «Создать облачное хранилище», затем скопируйте ID на остальные.</li></ol>' +
@@ -479,9 +588,9 @@ function viewSettings() {
     '<button class="btn" data-act="sync-push">Отправить в облако</button>' +
     '<button class="btn danger" data-act="sync-forget">Забыть токен на этом устройстве</button></div>' +
     '<p class="small muted" id="syncMsg"></p>' +
-    '<div class="note warn small">Токен хранится в этом браузере. На рабочем компьютере нажимайте «Забыть токен», если доступ к нему есть у других людей.</div></div>' +
+    '<div class="note warn small">Токен хранится в этом браузере. На рабочем компьютере нажимайте «Забыть токен», если к нему есть доступ у других людей.</div></div>' +
 
-    '<div class="card"><h2>Резервная копия</h2><p class="small">Файл со всеми отметками и заметками. Можно перенести на другое устройство вручную.</p>' +
+    '<div class="card"><h2>Резервная копия</h2><p class="small">Файл со всеми отметками и заметками. Его же можно прислать Claude для разбора прогресса.</p>' +
     '<div class="btns"><button class="btn" data-act="export">Скачать копию (.json)</button>' +
     '<label class="btn" style="display:inline-block">Загрузить из файла<input type="file" id="importFile" accept=".json,application/json" class="hidden"></label>' +
     '<button class="btn danger" data-act="reset">Стереть всё</button></div></div>';
@@ -490,34 +599,43 @@ function viewSettings() {
 // ---------------- Events ----------------
 document.getElementById('tabs').addEventListener('click', function (e) {
   var t = e.target.getAttribute('data-tab');
-  if (t) { tab = t; if (t !== 'today') editDate = null; render(); window.scrollTo(0, 0); }
+  if (t) { tab = t; editDate = null; openLesson = null; render(); window.scrollTo(0, 0); }
 });
 
 function collectDay() {
   var k = editDate || todayKey();
   var l = state.logs[k] = state.logs[k] || {};
-  ['hours', 'did', 'learned', 'hard', 'tomorrow'].forEach(function (f) { var el = $('#f_' + f); if (el) l[f] = el.value; });
+  ['hours', 'did', 'learned', 'hard'].forEach(function (f) { var el = $('#f_' + f); if (el) l[f] = el.value; });
   return l;
 }
+function keepScroll(fn) { var y = window.scrollY; fn(); window.scrollTo(0, y); }
 
 var view = $('#view');
 view.addEventListener('change', function (e) {
   var t = e.target;
-  if (t.getAttribute('data-task')) {
+  if (t.getAttribute('data-lt')) {
+    var p = t.getAttribute('data-lt').split(':'), l = LESSONS[+p[0]], st = ensureLesson(l);
+    if (t.checked) { st.tasks[p[1]] = todayKey(); markStudied(); } else delete st.tasks[p[1]];
+    collectDay(); save(); keepScroll(render);
+  } else if (t.getAttribute('data-short')) {
+    var log = collectDay(); log.shortTasks = log.shortTasks || {};
+    log.shortTasks[t.getAttribute('data-short')] = t.checked;
+    if (SHORT.every(function (x, j) { return log.shortTasks[j]; })) log.studied = true;
+    save(); keepScroll(render);
+  } else if (t.getAttribute('data-task')) {
     var id = t.getAttribute('data-task');
-    if (t.checked) state.tasks[id] = todayKey(); else delete state.tasks[id];
-    save(); if (tab === 'today') collectDay(); render();
-  } else if (t.getAttribute('data-routine')) {
-    var l = collectDay(); l.routine = l.routine || {};
-    l.routine[t.getAttribute('data-routine')] = t.checked;
-    save(); render();
+    if (t.checked) { state.tasks[id] = todayKey(); markStudied(); } else delete state.tasks[id];
+    save(); keepScroll(render);
   } else if (t.id === 'restDay') {
     state.settings.restDay = +t.value; save();
   } else if (t.id === 'importFile' && t.files[0]) {
     var r = new FileReader();
     r.onload = function () {
-      try { var d = JSON.parse(r.result); if (!d.tasks) throw 0; state = d; save(); alert('Данные загружены'); render(); }
-      catch (err) { alert('Не удалось прочитать файл'); }
+      try {
+        var d = JSON.parse(r.result); if (!d.tasks) throw 0;
+        d.lessons = d.lessons || {}; d.logs = d.logs || {}; d.reviews = d.reviews || {}; d.settings = d.settings || { restDay: -1 };
+        state = d; save(); alert('Данные загружены'); render();
+      } catch (err) { alert('Не удалось прочитать файл'); }
     };
     r.readAsText(t.files[0]);
   }
@@ -534,23 +652,46 @@ view.addEventListener('input', function (e) {
   }
 });
 view.addEventListener('click', function (e) {
-  var t = e.target.closest ? e.target.closest('[data-act],[data-mood],[data-open],[data-d],[data-toggle]') : null;
+  var t = e.target.closest ? e.target.closest('[data-act],[data-mood],[data-open],[data-d],[data-toggle],[data-lesson]') : null;
   if (!t) return;
   if (t.getAttribute('data-mood')) {
-    collectDay().mood = +t.getAttribute('data-mood'); save(); render(); return;
+    collectDay().mood = +t.getAttribute('data-mood'); save(); keepScroll(render); return;
   }
   if (t.getAttribute('data-open') || t.getAttribute('data-d')) {
     e.preventDefault(); editDate = t.getAttribute('data-open') || t.getAttribute('data-d');
     if (editDate === todayKey()) editDate = null;
     tab = 'today'; render(); window.scrollTo(0, 0); return;
   }
+  if (t.getAttribute('data-lesson')) {
+    e.preventDefault(); openLesson = +t.getAttribute('data-lesson'); render(); window.scrollTo(0, 0); return;
+  }
   if (t.getAttribute('data-toggle')) { $('#' + t.getAttribute('data-toggle')).classList.toggle('hidden'); return; }
-  var act = t.getAttribute('data-act');
+  var act = t.getAttribute('data-act'), li = +t.getAttribute('data-l');
   if (act === 'back-today') { e.preventDefault(); editDate = null; render(); }
-  else if (act === 'save-day') {
-    var l = collectDay(); l.studied = true; save(); render();
+  else if (act === 'plan-back') { e.preventDefault(); openLesson = null; render(); }
+  else if (act === 'quiz-check') {
+    var l = LESSONS[li], answers = [], missing = false;
+    l.quiz.forEach(function (qq, n) {
+      var el = document.querySelector('input[name="q' + li + '_' + n + '"]:checked');
+      if (!el) missing = true; else answers.push(+el.value);
+    });
+    if (missing) { alert('Ответьте на все вопросы'); return; }
+    var score = answers.filter(function (a, n) { return a === l.quiz[n][2]; }).length;
+    ensureLesson(l).quiz = { answers: answers, score: score, total: l.quiz.length, at: todayKey() };
+    markStudied(); collectDay(); save(); keepScroll(render);
+  } else if (act === 'quiz-retry') {
+    delete ensureLesson(LESSONS[li]).quiz; collectDay(); save(); keepScroll(render);
+  } else if (act === 'lesson-done') {
+    ensureLesson(LESSONS[li]).done = todayKey(); markStudied(); collectDay(); save();
+    openLesson = null; render(); window.scrollTo(0, 0);
+  } else if (act === 'short-on') {
+    collectDay().short = true; save(); render(); window.scrollTo(0, 0);
+  } else if (act === 'short-off') {
+    collectDay().short = false; save(); render();
+  } else if (act === 'save-day') {
+    var lg = collectDay(); lg.studied = true; save(); keepScroll(render);
     var m = $('#saveMsg'); if (m) m.textContent = 'Сохранено ✓ День отмечен в трекере.';
-  } else if (act === 'unmark-day') { collectDay().studied = false; save(); render(); }
+  } else if (act === 'unmark-day') { collectDay().studied = false; save(); keepScroll(render); }
   else if (act === 'export') {
     var blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
     var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'go-plan-' + todayKey() + '.json';
